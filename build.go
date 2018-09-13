@@ -205,6 +205,25 @@ func (b *builder) processFunctionNode(root *functionNode) (query, error) {
 			}
 		}
 		qyOutput = &functionQuery{Input: b.firstInput, Func: substringFunc(arg1, arg2, arg3)}
+	case "substring-before", "substring-after":
+		//substring( haystack, needle )
+		if len(root.Args) != 2 {
+			return nil, errors.New("xpath: substring-before function must have two parameters")
+		}
+		var (
+			arg1, arg2 query
+			err        error
+		)
+		if arg1, err = b.processNode(root.Args[0]); err != nil {
+			return nil, err
+		}
+		if arg2, err = b.processNode(root.Args[1]); err != nil {
+			return nil, err
+		}
+		qyOutput = &functionQuery{
+			Input: b.firstInput,
+			Func:  substringIndFunc(arg1, arg2, root.FuncName == "substring-after"),
+		}
 	case "string-length":
 		// string-length( [string] )
 		if len(root.Args) < 1 {
@@ -233,10 +252,10 @@ func (b *builder) processFunctionNode(root *functionNode) (query, error) {
 			return nil, err
 		}
 		qyOutput = &functionQuery{Input: argQuery, Func: notFunc}
-	case "name":
+	case "name", "local-name":
 		inp := b.firstInput
 		if len(root.Args) > 1 {
-			return nil, errors.New("xpath: name function must have at most one parameter")
+			return nil, fmt.Errorf("xpath: %s function must have at most one parameter", root.FuncName)
 		}
 		if len(root.Args) == 1 {
 			argQuery, err := b.processNode(root.Args[0])
@@ -245,15 +264,22 @@ func (b *builder) processFunctionNode(root *functionNode) (query, error) {
 			}
 			inp = argQuery
 		}
-		qyOutput = &functionQuery{Input: inp, Func: nameFunc}
+		f := &functionQuery{Input: inp}
+		switch root.FuncName {
+		case "name":
+			f.Func = nameFunc
+		case "local-name":
+			f.Func = localNameFunc
+		}
+		qyOutput = f
 	case "last":
 		qyOutput = &functionQuery{Input: b.firstInput, Func: lastFunc}
 	case "position":
 		qyOutput = &functionQuery{Input: b.firstInput, Func: positionFunc}
-	case "boolean":
+	case "boolean", "string":
 		inp := b.firstInput
 		if len(root.Args) > 1 {
-			return nil, errors.New("xpath: boolean function must have at most one parameter")
+			return nil, fmt.Errorf("xpath: %s function must have at most one parameter", root.FuncName)
 		}
 		if len(root.Args) == 1 {
 			argQuery, err := b.processNode(root.Args[0])
@@ -262,7 +288,14 @@ func (b *builder) processFunctionNode(root *functionNode) (query, error) {
 			}
 			inp = argQuery
 		}
-		qyOutput = &functionQuery{Input: inp, Func: booleanFunc}
+		f := &functionQuery{Input: inp}
+		switch root.FuncName {
+		case "boolean":
+			f.Func = booleanFunc
+		case "string":
+			f.Func = stringFunc
+		}
+		qyOutput = f
 	case "count":
 		//if b.firstInput == nil {
 		//	return nil, errors.New("xpath: expression must evaluate to node-set")
@@ -284,6 +317,15 @@ func (b *builder) processFunctionNode(root *functionNode) (query, error) {
 			return nil, err
 		}
 		qyOutput = &functionQuery{Input: argQuery, Func: sumFunc}
+	case "ceiling":
+		if len(root.Args) == 0 {
+			return nil, fmt.Errorf("xpath: ceiling(node-sets) function must with have parameters node-sets")
+		}
+		argQuery, err := b.processNode(root.Args[0])
+		if err != nil {
+			return nil, err
+		}
+		qyOutput = &functionQuery{Input: argQuery, Func: ceilingFunc}
 	case "concat":
 		if len(root.Args) < 2 {
 			return nil, fmt.Errorf("xpath: concat() must have at least two arguments")

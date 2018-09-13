@@ -3,6 +3,7 @@ package xpath
 import (
 	"errors"
 	"fmt"
+	"math"
 	"strconv"
 	"strings"
 )
@@ -90,8 +91,45 @@ func sumFunc(q query, t iterator) interface{} {
 	return sum
 }
 
+// ceilingFunc is a XPath Node Set functions ceiling(node-set).
+func ceilingFunc(q query, t iterator) interface{} {
+	var val float64
+	switch typ := q.Evaluate(t).(type) {
+	case query:
+		node := typ.Select(t)
+		if node == nil {
+			return float64(0)
+		}
+		if v, err := strconv.ParseFloat(node.Value(), 64); err == nil {
+			val = v
+		}
+	case float64:
+		val = typ
+	case string:
+		v, err := strconv.ParseFloat(typ, 64)
+		if err != nil {
+			panic(errors.New("ceiling() function argument type must be a node-set or number"))
+		}
+		val = v
+	}
+	return math.Ceil(val)
+}
+
 // nameFunc is a XPath functions name([node-set]).
 func nameFunc(q query, t iterator) interface{} {
+	v := q.Select(t)
+	if v == nil {
+		return ""
+	}
+	ns := v.Prefix()
+	if ns == "" {
+		return v.LocalName()
+	}
+	return ns + ":" + v.LocalName()
+}
+
+// localNameFunc is a XPath functions local-name([node-set]).
+func localNameFunc(q query, t iterator) interface{} {
 	v := q.Select(t)
 	if v == nil {
 		return ""
@@ -118,10 +156,34 @@ func asBool(t iterator, v interface{}) bool {
 	}
 }
 
+func asString(t iterator, v interface{}) string {
+	switch v := v.(type) {
+	case nil:
+		return ""
+	case bool:
+		if v {
+			return "true"
+		}
+		return "false"
+	case float64:
+		return strconv.FormatFloat(v, 'g', -1, 64)
+	case string:
+		return v
+	default:
+		panic(fmt.Errorf("unexpected type: %T", v))
+	}
+}
+
 // booleanFunc is a XPath functions boolean([node-set]).
 func booleanFunc(q query, t iterator) interface{} {
 	v := q.Evaluate(t)
 	return asBool(t, v)
+}
+
+// stringFunc is a XPath functions string([node-set]).
+func stringFunc(q query, t iterator) interface{} {
+	v := q.Evaluate(t)
+	return asString(t, v)
 }
 
 // startwithFunc is a XPath functions starts-with(string, string).
@@ -244,7 +306,10 @@ func substringFunc(arg1, arg2, arg3 query) func(query, iterator) interface{} {
 
 		if start, ok = arg2.Evaluate(t).(float64); !ok {
 			panic(errors.New("substring() function first argument type must be int"))
+		} else if start < 1 {
+			panic(errors.New("substring() function first argument type must be >= 1"))
 		}
+		start--
 		if arg3 != nil {
 			if length, ok = arg3.Evaluate(t).(float64); !ok {
 				panic(errors.New("substring() function second argument type must be int"))
@@ -257,6 +322,83 @@ func substringFunc(arg1, arg2, arg3 query) func(query, iterator) interface{} {
 			return m[int(start):int(length+start)]
 		}
 		return m[int(start):]
+	}
+}
+
+// substringIndFunc is XPath functions substring-before/substring-after function returns a part of a given string.
+func substringIndFunc(arg1, arg2 query, after bool) func(query, iterator) interface{} {
+	return func(q query, t iterator) interface{} {
+		var str string
+		switch v := arg1.Evaluate(t).(type) {
+		case string:
+			str = v
+		case query:
+			node := v.Select(t)
+			if node == nil {
+				return ""
+			}
+			str = node.Value()
+		}
+		var word string
+		switch v := arg2.Evaluate(t).(type) {
+		case string:
+			word = v
+		case query:
+			node := v.Select(t)
+			if node == nil {
+				return ""
+			}
+			word = node.Value()
+		}
+		if word == "" {
+			return ""
+		}
+
+		i := strings.Index(str, word)
+		if i < 0 {
+			return ""
+		}
+		if after {
+			return str[i+len(word):]
+		}
+		return str[:i]
+	}
+}
+
+// substringAfterFunc is XPath functions substring-before function returns a part of a given string.
+func substringBeforeFunc(arg1, arg2 query) func(query, iterator) interface{} {
+	return func(q query, t iterator) interface{} {
+		var str string
+		switch v := arg1.Evaluate(t).(type) {
+		case string:
+			str = v
+		case query:
+			node := v.Select(t)
+			if node == nil {
+				return ""
+			}
+			str = node.Value()
+		}
+		var word string
+		switch v := arg2.Evaluate(t).(type) {
+		case string:
+			word = v
+		case query:
+			node := v.Select(t)
+			if node == nil {
+				return ""
+			}
+			word = node.Value()
+		}
+		if word == "" {
+			return ""
+		}
+
+		i := strings.Index(str, word)
+		if i < 0 {
+			return ""
+		}
+		return str[:i]
 	}
 }
 

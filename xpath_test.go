@@ -200,11 +200,11 @@ func TestFunction(t *testing.T) {
 	testXPath2(t, html, "//*[starts-with(@href,'/a')]", 2) // a links: `/account`,`/about`
 	testXPath2(t, html, "//*[ends-with(@href,'t')]", 2)    // a links: `/account`,`/about`
 	testXPath3(t, html, "//h1[normalize-space(text())='This is a H1']", selectNode(html, "//h1"))
-	testXPath3(t, html, "//title[substring(.,0)='Hello']", selectNode(html, "//title"))
-	testXPath3(t, html, "//title[substring(text(),0,4)='Hell']", selectNode(html, "//title"))
-	testXPath3(t, html, "//title[substring(self::*,0,4)='Hell']", selectNode(html, "//title"))
-	testXPath2(t, html, "//title[substring(child::*,0)]", 0) // Here substring return boolen (false), should it?
-	testXPath2(t, html, "//title[substring(child::*,0) = '']", 1)
+	testXPath3(t, html, "//title[substring(.,1)='Hello']", selectNode(html, "//title"))
+	testXPath3(t, html, "//title[substring(text(),1,4)='Hell']", selectNode(html, "//title"))
+	testXPath3(t, html, "//title[substring(self::*,1,4)='Hell']", selectNode(html, "//title"))
+	testXPath2(t, html, "//title[substring(child::*,1)]", 0) // Here substring return boolen (false), should it?
+	testXPath2(t, html, "//title[substring(child::*,1) = '']", 1)
 	testXPath3(t, html, "//li[not(a)]", selectNode(html, "//ul/li[4]"))
 	testXPath2(t, html, "//li/a[not(@id='1')]", 2) //  //li/a[@id!=1]
 	testXPath2(t, html, "//h1[string-length(normalize-space(' abc ')) = 3]", 1)
@@ -213,19 +213,13 @@ func TestFunction(t *testing.T) {
 	testXPath2(t, html, "//title[string-length(self::text()) = 5]", 1) // Hello = 5
 	testXPath2(t, html, "//title[string-length(child::*) = 5]", 0)
 	testXPath2(t, html, "//ul[count(li)=4]", 1)
-	if MustCompile("sum(1+2)").Evaluate(createNavigator(html)).(float64) != 3 { // 1+2+3
-		t.Fatal("sum(1+2) != 3")
-	}
-	if MustCompile("sum(//a/@id)").Evaluate(createNavigator(html)).(float64) != 6 { // 1+2+3
-		t.Fatal("sum(//a/@id) != 6")
-	}
-	if MustCompile(`concat("1","2","3")`).Evaluate(createNavigator(html)).(string) != "123" {
-		t.Fatal(`concat("1","2","3") != "123"`)
-	}
-
-	if MustCompile(`concat(" ",//a[@id='1']/@href," ")`).Evaluate(createNavigator(html)).(string) != " / " {
-		t.Fatal("concat()")
-	}
+	testEval(t, html, "sum(1+2)", float64(3))
+	testEval(t, html, "string(sum(1+2))", "3")
+	testEval(t, html, "sum(1.1+2)", float64(3.1))
+	testEval(t, html, "sum(//a/@id)", float64(6)) // 1+2+3
+	testEval(t, html, `concat("1","2","3")`, "123")
+	testEval(t, html, `concat(" ",//a[@id='1']/@href," ")`, " / ")
+	testEval(t, html, "ceiling(5.2)", float64(6))
 }
 
 func TestPanic(t *testing.T) {
