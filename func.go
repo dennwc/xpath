@@ -92,7 +92,11 @@ func sumFunc(q query, t iterator) interface{} {
 
 // nameFunc is a XPath functions name([node-set]).
 func nameFunc(q query, t iterator) interface{} {
-	return t.Current().LocalName()
+	v := q.Select(t)
+	if v == nil {
+		return ""
+	}
+	return v.LocalName()
 }
 
 func asBool(t iterator, v interface{}) bool {
